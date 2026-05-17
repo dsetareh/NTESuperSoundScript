@@ -32,7 +32,7 @@ WinGetClientPos(&winX, &winY, &winW, &winH, gameTitle)
 scaleX := winW / refW
 scaleY := winH / refH
 guiW := Round(380 * scaleX)
-guiH := Round(206 * scaleY)
+guiH := Round(270 * scaleY)
 fontSize := Round(14 * scaleY)
 
 ; Global variables for detection (Screen absolute)
@@ -42,10 +42,14 @@ abs_x2 := 0
 abs_x3 := 0
 abs_x4 := 0
 
-; Target colors (RGB hex)
-blueTarget   := 0x56EFFF
-yellowTarget := 0xFFD684
-redTarget    := 0xFA8272
+; Target colors (converted to BGR for PixelSearch)
+; RGB: 0x56EFFF -> BGR: 0xFFEF56
+blueTarget   := 0xFFEF56
+; RGB: 0xFFD684 -> BGR: 0x84D6FF
+yellowTarget := 0x84D6FF
+; RGB: 0xFA8272 -> BGR: 0x7282FA
+redTarget    := 0x7282FA
+; RGB: 0xFF86FF -> BGR: 0xFF86FF
 purpleTarget := 0xFF86FF
 
 ; Color matching tolerance (0=exact, higher=more forgiving)
@@ -71,9 +75,11 @@ debugGui.Add("Text", "vLblYellow x" Round(14*scaleX) " y" Round(42*scaleY)  " w"
 debugGui.Add("Text", "vLblRed    x" Round(14*scaleX) " y" Round(74*scaleY)  " w" Round(320*scaleX) " h" Round(28*scaleY) " BackgroundTrans", "Red:    --")
 debugGui.Add("Text", "vLblPurple x" Round(14*scaleX) " y" Round(106*scaleY) " w" Round(320*scaleX) " h" Round(28*scaleY) " BackgroundTrans", "Purple: --")
 debugGui.Add("Text", "vLblRes    x" Round(14*scaleX) " y" Round(138*scaleY) " w" Round(340*scaleX) " h" Round(28*scaleY) " BackgroundTrans", "Res:    " winW "x" winH)
+debugGui.Add("Text", "vLblScreen x" Round(14*scaleX) " y" Round(170*scaleY) " w" Round(340*scaleX) " h" Round(28*scaleY) " BackgroundTrans", "Screen: --")
+debugGui.Add("Text", "vLblMenuPix x" Round(14*scaleX) " y" Round(202*scaleY) " w" Round(280*scaleX) " h" Round(28*scaleY) " BackgroundTrans", "Menu Pix: ")
 
 debugGui.SetFont("s" fontSize " cFF4444", "Consolas")
-debugGui.Add("Text", "vLblStatus x" Round(14*scaleX) " y" Round(170*scaleY) " w" Round(340*scaleX) " h" Round(28*scaleY) " BackgroundTrans", "Status: STOPPED")
+debugGui.Add("Text", "vLblStatus x" Round(14*scaleX) " y" Round(234*scaleY) " w" Round(340*scaleX) " h" Round(28*scaleY) " BackgroundTrans", "Status: STOPPED")
 
 ; Color swatches
 swatchSize := Round(22 * scaleY)
@@ -81,6 +87,11 @@ debugGui.Add("Progress", "vSw1 x" Round(340*scaleX) " y" Round(12*scaleY)  " w" 
 debugGui.Add("Progress", "vSw2 x" Round(340*scaleX) " y" Round(44*scaleY)  " w" swatchSize " h" swatchSize " Background111111", 0)
 debugGui.Add("Progress", "vSw3 x" Round(340*scaleX) " y" Round(76*scaleY)  " w" swatchSize " h" swatchSize " Background111111", 0)
 debugGui.Add("Progress", "vSw4 x" Round(340*scaleX) " y" Round(108*scaleY) " w" swatchSize " h" swatchSize " Background111111", 0)
+
+; Menu detection swatches
+debugGui.Add("Progress", "vSwM1 x" Round(280*scaleX) " y" Round(204*scaleY) " w" Round(20*scaleX) " h" swatchSize " Background111111", 0)
+debugGui.Add("Progress", "vSwM2 x" Round(310*scaleX) " y" Round(204*scaleY) " w" Round(20*scaleX) " h" swatchSize " Background111111", 0)
+debugGui.Add("Progress", "vSwM3 x" Round(340*scaleX) " y" Round(204*scaleY) " w" Round(20*scaleX) " h" swatchSize " Background111111", 0)
 
 ; Show GUI at the top-left of the game's client area
 debugGui.Show("x" (winX + 10) " y" (winY + 10) " w" guiW " h" guiH " NoActivate")
@@ -105,11 +116,34 @@ UpdateCoords() {
     abs_x3 := currX + Round(2270 * currW / refW)
     abs_x4 := currX + Round(2950 * currW / refW)
 
+    ; Screen Detection (Pink bar landmark)
+    pinkRGB := 0xBB2967
+    variance := 0x10
+    mY  := currY + Round(1866 * currH / refH) ; Coord 622 in 720p
+    mX1 := currX + Round(400  * currW / refW)
+    mX2 := currX + Round(1920 * currW / refW)
+    mX3 := currX + Round(3440 * currW / refW)
+
+    ; Capture actual colors for debug GUI
+    cm1 := PixelGetColor(mX1, mY)
+    cm2 := PixelGetColor(mX2, mY)
+    cm3 := PixelGetColor(mX3, mY)
+    
+    ; Check 3 points along the line to confirm the pink bar is present
+    isMenu := PixelSearch(&_, &_, mX1-5, mY-5, mX1+5, mY+5, pinkRGB, variance) 
+           && PixelSearch(&_, &_, mX2-5, mY-5, mX2+5, mY+5, pinkRGB, variance) 
+           && PixelSearch(&_, &_, mX3-5, mY-5, mX3+5, mY+5, pinkRGB, variance)
+    
+    debugGui["LblScreen"].Text := "Screen: " (isMenu ? "MENU" : "GAME/OTHER")
+    debugGui["SwM1"].Opt("Background" Format("{:06X}", cm1))
+    debugGui["SwM2"].Opt("Background" Format("{:06X}", cm2))
+    debugGui["SwM3"].Opt("Background" Format("{:06X}", cm3))
+
     ; If window moved or resized, update GUI position/size
     if (currX != winX || currY != winY || currW != winW || currH != winH) {
         winX := currX, winY := currY, winW := currW, winH := currH
         currentGuiW := Round(380 * (winW / refW))
-        currentGuiH := Round(206 * (winH / refH))
+        currentGuiH := Round(270 * (winH / refH))
         debugGui.Move(winX + 10, winY + 10, currentGuiW, currentGuiH)
         debugGui["LblRes"].Text := "Res:    " winW "x" winH
     }
@@ -217,6 +251,29 @@ CheckPixels() {
     debugGui["Sw2"].Opt("Background" Format("{:06X}", c2))
     debugGui["Sw3"].Opt("Background" Format("{:06X}", c3))
     debugGui["Sw4"].Opt("Background" Format("{:06X}", c4))
+}
+
+; Function to click the Play button in the background
+ClickPlay() {
+    global winX, winY, winW, winH, refW, refH, gameTitle
+    if !WinExist(gameTitle)
+        return
+    
+    ; Play button target: 1065, 674 in 720p
+    clickX := winX + Round(3195 * winW / refW)
+    clickY := winY + Round(2022 * winH / refH)
+    
+    ; Convert Screen to Client coordinates for PostMessage
+    WinGetClientPos(&cX, &cY, , , gameTitle)
+    clientX := clickX - cX
+    clientY := clickY - cY
+    
+    lParam := (clientY << 16) | (clientX & 0xFFFF)
+    hwnd := WinExist(gameTitle)
+    
+    PostMessage(0x0201, 1, lParam, , hwnd) ; WM_LBUTTONDOWN
+    Sleep(50)
+    PostMessage(0x0202, 0, lParam, , hwnd) ; WM_LBUTTONUP
 }
 
 RemoveToolTip() {
