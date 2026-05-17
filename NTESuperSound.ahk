@@ -44,15 +44,21 @@ abs_x4 := 0
 
 ; Target colors (RGB format)
 blueTarget   := 0x56EFFF
-yellowTarget := 0xFFD684
+yellowTarget := 0xFCD38D
 redTarget    := 0xFA8272
 purpleTarget := 0xFF86FF
 
+; Song Completed screen colors (at key positions)
+completedColors := [0x56392B, 0x593F30, 0x573A2C, 0x56392B]
+
 ; Color matching tolerance (0=exact, higher=more forgiving)
-tolerance := 80
+tolerance := 75
+
+; Horizontal pixel offset for multi-sample detection (in reference pixels, scaled at runtime)
+sampleOffset := Round(20 * winW / refW)
 
 ; Cooldown tracking in ms (Independent per color)
-cooldown := 150
+cooldown := 100
 lastPress := [0, 0, 0, 0]
 wasActive := [false, false, false, false]
 isRunning := false
@@ -132,7 +138,7 @@ UpdateCoords() {
         menuStartTime := 0
     }
 
-    debugGui["LblScreen"].Text := "Screen: " (isMenu ? "MENU" : "GAME/OTHER")
+    debugGui["LblScreen"].Text := "Screen: " (isMenu ? "MENU" : "GAME")
 
     ; If window moved or resized, update GUI position/size
     if (currX != winX || currY != winY || currW != winW || currH != winH) {
@@ -208,13 +214,48 @@ PostKeyUp(hwnd, vk, sc) {
     PostMessage(0x0101, vk, lParamUp, , hwnd)   ; WM_KEYUP
 }
 
+; Sample 3 pixels (left, center, right) and return true if ANY match the target
+MultiColorMatch(cx, cy, target, tol, offset) {
+    return ColorMatch(PixelGetColor(cx, cy), target, tol)
+        || ColorMatch(PixelGetColor(cx - offset, cy), target, tol)
+        || ColorMatch(PixelGetColor(cx + offset, cy), target, tol)
+}
+
 CheckPixels() {
     global
     now := A_TickCount
     
-    ; Blue -> d (0x44)
+    ; Read center pixels first for completed-screen check and debug display
     c1 := PixelGetColor(abs_x1, abs_py)
-    a1 := ColorMatch(c1, blueTarget, tolerance)
+    c2 := PixelGetColor(abs_x2, abs_py)
+    c3 := PixelGetColor(abs_x3, abs_py)
+    c4 := PixelGetColor(abs_x4, abs_py)
+
+    ; Skip if on menu screen
+    if (isMenu) {
+        debugGui["Sw1"].Opt("Background" Format("{:06X}", c1))
+        debugGui["Sw2"].Opt("Background" Format("{:06X}", c2))
+        debugGui["Sw3"].Opt("Background" Format("{:06X}", c3))
+        debugGui["Sw4"].Opt("Background" Format("{:06X}", c4))
+        return
+    }
+
+    ; Skip if Song Completed screen detected (all 4 positions match completed colors)
+    completedTol := 25
+    if (ColorMatch(c1, completedColors[1], completedTol)
+        && ColorMatch(c2, completedColors[2], completedTol)
+        && ColorMatch(c3, completedColors[3], completedTol)
+        && ColorMatch(c4, completedColors[4], completedTol)) {
+        debugGui["Sw1"].Opt("Background" Format("{:06X}", c1))
+        debugGui["Sw2"].Opt("Background" Format("{:06X}", c2))
+        debugGui["Sw3"].Opt("Background" Format("{:06X}", c3))
+        debugGui["Sw4"].Opt("Background" Format("{:06X}", c4))
+        debugGui["LblScreen"].Text := "Screen: COMPLETED"
+        return
+    }
+
+    ; Blue -> d (0x44)
+    a1 := MultiColorMatch(abs_x1, abs_py, blueTarget, tolerance, sampleOffset)
     if (a1 && !wasActive[1] && now - lastPress[1] > cooldown) {
         SendBackgroundKey(0x44, "D")
         lastPress[1] := now
@@ -222,8 +263,7 @@ CheckPixels() {
     wasActive[1] := a1
 
     ; Yellow -> f (0x46)
-    c2 := PixelGetColor(abs_x2, abs_py)
-    a2 := ColorMatch(c2, yellowTarget, tolerance)
+    a2 := MultiColorMatch(abs_x2, abs_py, yellowTarget, tolerance, sampleOffset)
     if (a2 && !wasActive[2] && now - lastPress[2] > cooldown) {
         SendBackgroundKey(0x46, "F")
         lastPress[2] := now
@@ -231,8 +271,7 @@ CheckPixels() {
     wasActive[2] := a2
 
     ; Red -> j (0x4A)
-    c3 := PixelGetColor(abs_x3, abs_py)
-    a3 := ColorMatch(c3, redTarget, tolerance)
+    a3 := MultiColorMatch(abs_x3, abs_py, redTarget, tolerance, sampleOffset)
     if (a3 && !wasActive[3] && now - lastPress[3] > cooldown) {
         SendBackgroundKey(0x4A, "J")
         lastPress[3] := now
@@ -240,15 +279,14 @@ CheckPixels() {
     wasActive[3] := a3
 
     ; Purple -> k (0x4B)
-    c4 := PixelGetColor(abs_x4, abs_py)
-    a4 := ColorMatch(c4, purpleTarget, tolerance)
+    a4 := MultiColorMatch(abs_x4, abs_py, purpleTarget, tolerance, sampleOffset)
     if (a4 && !wasActive[4] && now - lastPress[4] > cooldown) {
         SendBackgroundKey(0x4B, "K")
         lastPress[4] := now
     }
     wasActive[4] := a4
 
-    ; Update debug window swatches
+    ; Update debug window swatches (still shows center pixel color)
     debugGui["Sw1"].Opt("Background" Format("{:06X}", c1))
     debugGui["Sw2"].Opt("Background" Format("{:06X}", c2))
     debugGui["Sw3"].Opt("Background" Format("{:06X}", c3))
