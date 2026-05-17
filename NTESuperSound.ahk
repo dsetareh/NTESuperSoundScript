@@ -52,7 +52,7 @@ purpleTarget := 0xFF86FF
 tolerance := 80
 
 ; Cooldown tracking in ms (Independent per color)
-cooldown := 250
+cooldown := 150
 lastPress := [0, 0, 0, 0]
 wasActive := [false, false, false, false]
 isRunning := false
