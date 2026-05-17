@@ -6,16 +6,26 @@ if !A_IsAdmin {
     ExitApp
 }
 
-; Scale pixel coordinates from 3840x2160 reference to current resolution
+; Reference resolution (coordinates were captured at 3840x2160)
 refW := 3840
 refH := 2160
-screenW := A_ScreenWidth
-screenH := A_ScreenHeight
-py := Round(1684 * screenH / refH)
-x1 := Round(878  * screenW / refW)   ; blue   -> d
-x2 := Round(1546 * screenW / refW)   ; yellow -> f
-x3 := Round(2270 * screenW / refW)   ; red    -> j
-x4 := Round(2950 * screenW / refW)   ; purple -> k
+
+; Detect HTGame.exe window
+gameTitle := "ahk_exe HTGame.exe"
+if !WinExist(gameTitle) {
+    MsgBox "HTGame.exe not found. Please launch the game first."
+    ExitApp
+}
+
+; Get window client area position and size
+WinGetClientPos(&winX, &winY, &winW, &winH, gameTitle)
+
+; Scale pixel coordinates relative to game window
+py := winY + Round(1684 * winH / refH)
+x1 := winX + Round(878  * winW / refW)   ; blue   -> d
+x2 := winX + Round(1546 * winW / refW)   ; yellow -> f
+x3 := winX + Round(2270 * winW / refW)   ; red    -> j
+x4 := winX + Round(2950 * winW / refW)   ; purple -> k
 
 ; Target colors (RGB hex)
 blueTarget   := 0x56EFFF
@@ -48,7 +58,7 @@ debugGui.Add("Text", "vLblYellow x14  y42  w320 h28 BackgroundTrans", "Yellow: -
 debugGui.Add("Text", "vLblRed    x14  y74  w320 h28 BackgroundTrans", "Red:    --")
 debugGui.Add("Text", "vLblPurple x14  y106 w320 h28 BackgroundTrans", "Purple: --")
 ; Resolution label
-debugGui.Add("Text", "vLblRes    x14  y138 w340 h28 BackgroundTrans", "Res:    " screenW "x" screenH)
+debugGui.Add("Text", "vLblRes    x14  y138 w340 h28 BackgroundTrans", "Res:    " winW "x" winH)
 ; Status label
 debugGui.SetFont("s14 cFF4444", "Consolas")
 debugGui.Add("Text", "vLblStatus x14  y170 w340 h28 BackgroundTrans", "Status: STOPPED")
@@ -64,6 +74,19 @@ debugGui.Title := "Color Monitor"
 ; F1 to start, F2 to stop
 F1:: {
     global
+    if !WinExist(gameTitle) {
+        ToolTip "HTGame.exe not found!"
+        SetTimer RemoveToolTip, -1500
+        return
+    }
+    ; Recalculate coordinates in case window moved/resized
+    WinGetClientPos(&winX, &winY, &winW, &winH, gameTitle)
+    py := winY + Round(1684 * winH / refH)
+    x1 := winX + Round(878  * winW / refW)
+    x2 := winX + Round(1546 * winW / refW)
+    x3 := winX + Round(2270 * winW / refW)
+    x4 := winX + Round(2950 * winW / refW)
+    debugGui["LblRes"].Text := "Res:    " winW "x" winH
     debugGui["LblStatus"].Text := "Status: RUNNING"
     ToolTip "Color detection ON"
     SetTimer RemoveToolTip, -1500
