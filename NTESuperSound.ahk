@@ -6,12 +6,16 @@ if !A_IsAdmin {
     ExitApp
 }
 
-; Pixel coordinates (x, y=1684 for all)
-py := 1684
-x1 := 878   ; blue  -> d
-x2 := 1546  ; yellow -> f
-x3 := 2270  ; red   -> j
-x4 := 2950  ; purple -> k
+; Scale pixel coordinates from 3840x2160 reference to current resolution
+refW := 3840
+refH := 2160
+screenW := A_ScreenWidth
+screenH := A_ScreenHeight
+py := Round(1684 * screenH / refH)
+x1 := Round(878  * screenW / refW)   ; blue   -> d
+x2 := Round(1546 * screenW / refW)   ; yellow -> f
+x3 := Round(2270 * screenW / refW)   ; red    -> j
+x4 := Round(2950 * screenW / refW)   ; purple -> k
 
 ; Target colors (RGB hex)
 blueTarget   := 0x56EFFF
@@ -43,16 +47,18 @@ debugGui.Add("Text", "vLblBlue   x14  y10  w320 h28 BackgroundTrans", "Blue:   -
 debugGui.Add("Text", "vLblYellow x14  y42  w320 h28 BackgroundTrans", "Yellow: --")
 debugGui.Add("Text", "vLblRed    x14  y74  w320 h28 BackgroundTrans", "Red:    --")
 debugGui.Add("Text", "vLblPurple x14  y106 w320 h28 BackgroundTrans", "Purple: --")
+; Resolution label
+debugGui.Add("Text", "vLblRes    x14  y138 w340 h28 BackgroundTrans", "Res:    " screenW "x" screenH)
 ; Status label
 debugGui.SetFont("s14 cFF4444", "Consolas")
-debugGui.Add("Text", "vLblStatus x14  y140 w340 h28 BackgroundTrans", "Status: STOPPED")
+debugGui.Add("Text", "vLblStatus x14  y170 w340 h28 BackgroundTrans", "Status: STOPPED")
 debugGui.SetFont("s14 cWhite", "Consolas")
 ; Color swatches
 debugGui.Add("Progress", "vSw1 x340 y12  w22 h22 Background111111", 0)
 debugGui.Add("Progress", "vSw2 x340 y44  w22 h22 Background111111", 0)
 debugGui.Add("Progress", "vSw3 x340 y76  w22 h22 Background111111", 0)
 debugGui.Add("Progress", "vSw4 x340 y108 w22 h22 Background111111", 0)
-debugGui.Show("x10 y10 w380 h176 NoActivate")
+debugGui.Show("x10 y10 w380 h206 NoActivate")
 debugGui.Title := "Color Monitor"
 
 ; F1 to start, F2 to stop
@@ -70,16 +76,6 @@ F2:: {
     debugGui["LblStatus"].Text := "Status: STOPPED"
     ToolTip "Color detection OFF"
     SetTimer RemoveToolTip, -1500
-}
-
-; F3 to sample current colors at all 4 positions (for calibration)
-F3:: {
-    global
-    c1 := PixelGetColor(x1, py)
-    c2 := PixelGetColor(x2, py)
-    c3 := PixelGetColor(x3, py)
-    c4 := PixelGetColor(x4, py)
-    MsgBox "Current pixel colors:`nBlue pos:   " c1 "`nYellow pos: " c2 "`nRed pos:    " c3 "`nPurple pos: " c4
 }
 
 CheckPixels() {
