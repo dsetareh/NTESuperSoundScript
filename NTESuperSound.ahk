@@ -52,16 +52,14 @@ purpleTarget := 0xFF86FF
 completedColors := [0x56392B, 0x593F30, 0x573A2C, 0x56392B]
 
 ; Lane-specific tolerances
-blueTolerance := 85
+blueTolerance := 80
 yellowTolerance := 80
 redTolerance := 80
-purpleTolerance := 85
+purpleTolerance := 80
 
-; Horizontal pixel offset for multi-sample detection (in reference pixels, scaled at runtime)
-sampleOffset := Round(20 * winW / refW)
 
 ; Cooldown tracking in ms (Independent per color)
-cooldown := 50
+cooldown := 120
 lastPress := [0, 0, 0, 0]
 wasActive := [false, false, false, false]
 isRunning := false
@@ -89,7 +87,6 @@ debugGui.Add("Progress", "vSw4 x" Round(14*scaleX + 3*(swW + swGap)) " y" Round(
 ; Add other controls moved up
 debugGui.Add("Text", "vLblRes    x" Round(14*scaleX) " y" Round(45*scaleY) " w" Round(340*scaleX) " h" Round(28*scaleY) " BackgroundTrans", "Res:    " winW "x" winH)
 debugGui.Add("Text", "vLblScreen x" Round(14*scaleX) " y" Round(77*scaleY) " w" Round(340*scaleX) " h" Round(28*scaleY) " BackgroundTrans", "Screen: --")
-debugGui.Add("Text", "vLblLastKey x" Round(14*scaleX) " y" Round(109*scaleY) " w" Round(340*scaleX) " h" Round(28*scaleY) " BackgroundTrans", "Last: -- | Y:--- R:---")
 
 debugGui.SetFont("s" fontSize " cFF4444", "Consolas")
 debugGui.Add("Text", "vLblStatus x" Round(14*scaleX) " y" Round(141*scaleY) " w" Round(340*scaleX) " h" Round(28*scaleY) " BackgroundTrans", "Status: STOPPED")
@@ -101,7 +98,7 @@ debugGui.Show("x" (winX + 10) " y" (winY + 10) " w" guiW " h" Round(180 * scaleY
 UpdateCoords()
 
 ; Automatically track window movements every 1 second
-SetTimer UpdateCoords, 1000
+SetTimer UpdateCoords, 5000
 
 UpdateCoords() {
     global winX, winY, winW, winH, abs_py, abs_x1, abs_x2, abs_x3, abs_x4, isMenu, menuStartTime, isRunning
@@ -162,7 +159,7 @@ F1:: {
     debugGui["LblStatus"].Text := "Status: RUNNING"
     ToolTip "Color detection ON"
     SetTimer RemoveToolTip, -1500
-    SetTimer CheckPixels, 10
+    SetTimer CheckPixels, 15
 }
 
 F2:: {
@@ -202,7 +199,6 @@ SendBackgroundKey(vk, keyChar) {
     lParamDown := (sc << 16) | 1
     
     lastKeyText := keyChar " (" A_TickCount ")"
-    debugGui["LblLastKey"].Text := "Last: " lastKeyText
 
     PostMessage(0x0100, vk, lParamDown, , hwnd) ; WM_KEYDOWN
     
@@ -218,24 +214,6 @@ PostKeyUp(hwnd, vk, sc) {
     PostMessage(0x0101, vk, lParamUp, , hwnd)   ; WM_KEYUP
 }
 
-; Sample 3 pixels (left, center, right) and return true if ANY match the target
-MultiColorMatch(cx, cy, target, tol, offset) {
-    return ColorMatch(PixelGetColor(cx, cy), target, tol)
-        || ColorMatch(PixelGetColor(cx - offset, cy), target, tol)
-        || ColorMatch(PixelGetColor(cx + offset, cy), target, tol)
-}
-
-LaneMatchInfo(cx, cy, target, tol, offset) {
-    left := ColorMatch(PixelGetColor(cx - offset, cy), target, tol)
-    center := ColorMatch(PixelGetColor(cx, cy), target, tol)
-    right := ColorMatch(PixelGetColor(cx + offset, cy), target, tol)
-
-    return {
-        any: left || center || right,
-        center: center,
-        pattern: (left ? "L" : "-") (center ? "C" : "-") (right ? "R" : "-")
-    }
-}
 
 CheckPixels() {
     global
@@ -249,10 +227,6 @@ CheckPixels() {
 
     ; Skip if on menu screen
     if (isMenu) {
-        debugGui["Sw1"].Opt("Background" Format("{:06X}", c1))
-        debugGui["Sw2"].Opt("Background" Format("{:06X}", c2))
-        debugGui["Sw3"].Opt("Background" Format("{:06X}", c3))
-        debugGui["Sw4"].Opt("Background" Format("{:06X}", c4))
         return
     }
 
@@ -262,56 +236,56 @@ CheckPixels() {
         && ColorMatch(c2, completedColors[2], completedTol)
         && ColorMatch(c3, completedColors[3], completedTol)
         && ColorMatch(c4, completedColors[4], completedTol)) {
-        debugGui["Sw1"].Opt("Background" Format("{:06X}", c1))
-        debugGui["Sw2"].Opt("Background" Format("{:06X}", c2))
-        debugGui["Sw3"].Opt("Background" Format("{:06X}", c3))
-        debugGui["Sw4"].Opt("Background" Format("{:06X}", c4))
         debugGui["LblScreen"].Text := "Screen: COMPLETED"
         return
     }
 
+    hit := false
     ; Blue -> d (0x44)
-    blueLane := LaneMatchInfo(abs_x1, abs_py, blueTarget, blueTolerance, sampleOffset)
-    a1 := blueLane.any
-    if (a1 && !wasActive[1] && now - lastPress[1] > cooldown) {
+    a1 := (now - lastPress[1] > cooldown) ? ColorMatch(c1, blueTarget, blueTolerance) : wasActive[1]
+    if (a1 && !wasActive[1]) {
         SendBackgroundKey(0x44, "D")
         lastPress[1] := now
+        hit := true
     }
     wasActive[1] := a1
 
     ; Yellow -> f (0x46)
-    yellowLane := LaneMatchInfo(abs_x2, abs_py, yellowTarget, yellowTolerance, sampleOffset)
-    a2 := yellowLane.center
-    if (a2 && !wasActive[2] && now - lastPress[2] > cooldown) {
+    a2 := (now - lastPress[2] > cooldown) ? ColorMatch(c2, yellowTarget, yellowTolerance) : wasActive[2]
+    if (a2 && !wasActive[2]) {
         SendBackgroundKey(0x46, "F")
         lastPress[2] := now
+        hit := true
     }
     wasActive[2] := a2
 
     ; Red -> j (0x4A)
-    redLane := LaneMatchInfo(abs_x3, abs_py, redTarget, redTolerance, sampleOffset)
-    a3 := redLane.center
-    if (a3 && !wasActive[3] && now - lastPress[3] > cooldown) {
+    a3 := (now - lastPress[3] > cooldown) ? ColorMatch(c3, redTarget, redTolerance) : wasActive[3]
+    if (a3 && !wasActive[3]) {
         SendBackgroundKey(0x4A, "J")
         lastPress[3] := now
+        hit := true
     }
     wasActive[3] := a3
 
     ; Purple -> k (0x4B)
-    purpleLane := LaneMatchInfo(abs_x4, abs_py, purpleTarget, purpleTolerance, sampleOffset)
-    a4 := purpleLane.any
-    if (a4 && !wasActive[4] && now - lastPress[4] > cooldown) {
+    a4 := (now - lastPress[4] > cooldown) ? ColorMatch(c4, purpleTarget, purpleTolerance) : wasActive[4]
+    if (a4 && !wasActive[4]) {
         SendBackgroundKey(0x4B, "K")
         lastPress[4] := now
+        hit := true
     }
     wasActive[4] := a4
 
-    ; Update debug window swatches (still shows center pixel color)
-    debugGui["Sw1"].Opt("Background" Format("{:06X}", c1))
-    debugGui["Sw2"].Opt("Background" Format("{:06X}", c2))
-    debugGui["Sw3"].Opt("Background" Format("{:06X}", c3))
-    debugGui["Sw4"].Opt("Background" Format("{:06X}", c4))
-    debugGui["LblLastKey"].Text := "Last: " lastKeyText " | Y:" yellowLane.pattern " R:" redLane.pattern
+    ; Update debug window swatches on hit or every 1s
+    static lastGuiUpdate := 0
+    if (hit || (now - lastGuiUpdate > 1000)) {
+        debugGui["Sw1"].Opt("Background" Format("{:06X}", c1))
+        debugGui["Sw2"].Opt("Background" Format("{:06X}", c2))
+        debugGui["Sw3"].Opt("Background" Format("{:06X}", c3))
+        debugGui["Sw4"].Opt("Background" Format("{:06X}", c4))
+        lastGuiUpdate := now
+    }
 }
 
 ColorMatch(pixel, target, tol) {
