@@ -242,7 +242,7 @@ CheckPixels() {
 
     hit := false
     ; Blue -> d (0x44)
-    a1 := (now - lastPress[1] > cooldown) ? ColorMatch(c1, blueTarget, blueTolerance) : wasActive[1]
+    a1 := (now - lastPress[1] > cooldown) ? (ColorMatch(c1, blueTarget, blueTolerance) || IsNearBlack(c1)) : wasActive[1]
     if (a1 && !wasActive[1]) {
         SendBackgroundKey(0x44, "D")
         lastPress[1] := now
@@ -251,7 +251,7 @@ CheckPixels() {
     wasActive[1] := a1
 
     ; Yellow -> f (0x46)
-    a2 := (now - lastPress[2] > cooldown) ? ColorMatch(c2, yellowTarget, yellowTolerance) : wasActive[2]
+    a2 := (now - lastPress[2] > cooldown) ? (ColorMatch(c2, yellowTarget, yellowTolerance) || IsNearBlack(c2)) : wasActive[2]
     if (a2 && !wasActive[2]) {
         SendBackgroundKey(0x46, "F")
         lastPress[2] := now
@@ -260,7 +260,7 @@ CheckPixels() {
     wasActive[2] := a2
 
     ; Red -> j (0x4A)
-    a3 := (now - lastPress[3] > cooldown) ? ColorMatch(c3, redTarget, redTolerance) : wasActive[3]
+    a3 := (now - lastPress[3] > cooldown) ? (ColorMatch(c3, redTarget, redTolerance) || IsNearBlack(c3)) : wasActive[3]
     if (a3 && !wasActive[3]) {
         SendBackgroundKey(0x4A, "J")
         lastPress[3] := now
@@ -269,7 +269,7 @@ CheckPixels() {
     wasActive[3] := a3
 
     ; Purple -> k (0x4B)
-    a4 := (now - lastPress[4] > cooldown) ? ColorMatch(c4, purpleTarget, purpleTolerance) : wasActive[4]
+    a4 := (now - lastPress[4] > cooldown) ? (ColorMatch(c4, purpleTarget, purpleTolerance) || IsNearBlack(c4)) : wasActive[4]
     if (a4 && !wasActive[4]) {
         SendBackgroundKey(0x4B, "K")
         lastPress[4] := now
@@ -279,7 +279,7 @@ CheckPixels() {
 
     ; Update debug window swatches on hit or every 1s
     static lastGuiUpdate := 0
-    if (hit || (now - lastGuiUpdate > 1000)) {
+    if (hit || (now - lastGuiUpdate > 500)) {
         debugGui["Sw1"].Opt("Background" Format("{:06X}", c1))
         debugGui["Sw2"].Opt("Background" Format("{:06X}", c2))
         debugGui["Sw3"].Opt("Background" Format("{:06X}", c3))
@@ -296,6 +296,10 @@ ColorMatch(pixel, target, tol) {
     tg := (target >> 8) & 0xFF
     tb := target & 0xFF
     return (Abs(pr - tr) <= tol && Abs(pg - tg) <= tol && Abs(pb - tb) <= tol)
+}
+
+IsNearBlack(pixel) {
+    return ((pixel >> 16) & 0xFF < 30) && (((pixel >> 8) & 0xFF) < 30) && ((pixel & 0xFF) < 30)
 }
 
 ; Function to click the Play button in the background
